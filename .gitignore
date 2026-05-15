@@ -1,0 +1,17 @@
+# 编译产物
+bin/
+scheduler
+
+# 测试输出
+*.out
+*.log
+
+# 编辑器配置
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# macOS
+.DS_Store

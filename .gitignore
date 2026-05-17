@@ -5,6 +5,8 @@ scheduler
 # 测试输出
 *.out
 *.log
+core
+core.*
 
 # 编辑器配置
 .vscode/
@@ -12,6 +14,11 @@ scheduler
 *.swp
 *.swo
 *~
+.cursor/
 
 # macOS
 .DS_Store
+
+# 临时文件
+*.tmp
+*.bak

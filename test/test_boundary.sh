@@ -17,7 +17,7 @@ FAILED=0
 echo "[TEST] N=3 (最小边界) — 启动 6 秒，观察是否正常"
 OUTPUT=$(timeout 6s "$BIN" 3 2>&1) && EXIT_CODE=0 || EXIT_CODE=$?
 if [ "$EXIT_CODE" -eq 124 ]; then
-    echo "  ✓ 正常运行 6 秒后超时退出（预期行为）"
+    echo "  ✓ 正常运行 6 秒后超时退出（预期行为）" 
 else
     echo "  ✗ 非预期退出，exit code=$EXIT_CODE"
     FAILED=1

@@ -263,7 +263,7 @@ void WorkerManager::write_log_event(const char* event, const char* fmt, ...) {
     gettimeofday(&tv, nullptr);
     int64_t now_ms = (int64_t)tv.tv_sec * 1000 + tv.tv_usec / 1000;
 
-    fprintf(log_file_, "{\"event\":\"%s\",\"%s\",\"time_ms\":%lld}\n",
+    fprintf(log_file_, "{\"event\":\"%s\",%s,\"time_ms\":%lld}\n",
             event, buf, (long long)now_ms);
     fflush(log_file_);
 }

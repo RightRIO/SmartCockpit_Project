@@ -1,4 +1,4 @@
-# VoYah - Intelligent Cockpit Distributed Task Scheduler
+# VoYah - جدولة المهام الموزعة لنظام الكوكبيت الذكي
 
 <div align="center">
 
@@ -11,48 +11,48 @@
 
 [English](README_en.md) &nbsp;.&nbsp; [Chinese](README.md) &nbsp;.&nbsp; [Japanese](README_ja.md) &nbsp;.&nbsp; [Russian](README_ru.md) &nbsp;.&nbsp; [Arabic](README_ar.md)
 
-**High-reliability event-driven distributed task scheduler for intelligent cockpit systems.**
-Built with epoll + timerfd + socketpair - zero third-party dependencies.
+**جدولة مهام موزعة عالية الموثوقية تعمل بالحدث لنظام الكوكبيت الذكي.**
+مُنشأ بـ epoll + timerfd + socketpair - بدون مكتبات خارجية.
 
 </div>
 
 ---
 
-## Table of Contents
+## الفهرس
 
-- [Highlights](#highlights)
-- [Architecture](#architecture)
-- [Quick Start](#quick-start)
-- [Task Types](#task-types)
-- [Interactive Controls](#interactive-controls)
-- [Signal Controls](#signal-controls)
-- [Test Suite](#test-suite)
-- [Build and Run](#build-and-run)
-- [Project Structure](#project-structure)
-- [Design Decisions](#design-decisions)
-- [Performance](#performance)
+- [المميزات](#المميزات)
+- [البنية](#البنية)
+- [البدء السريع](#البدء-السريع)
+- [أنواع المهام](#أنواع-المهام)
+- [التحكم التفاعلي](#التحكم-التفاعلي)
+- [التحكم بالإشارات](#التحكم-بالإشارات)
+- [مجموعة الاختبارات](#مجموعة-الاختبارات)
+- [البناء والتشغيل](#البناء-والتشغيل)
+- [هيكل المشروع](#هيكل-المشروع)
+- [قرارات التصميم](#قرارات-التصميم)
+- [الأداء](#الأداء)
 - [Roadmap](#roadmap)
-- [License](#license)
+- [الترخيص](#الترخيص)
 
 ---
 
-## Highlights
+## المميزات
 
-| Feature | Implementation | Benefit |
-|---------|---------------|---------|
-| **Process Isolation** | fork() + socketpair | Single Worker crash does not affect system |
-| **O(1) I/O Multiplexing** | epoll LT mode | Consistent low latency under high concurrency |
-| **Nanosecond Timers** | timerfd + itimerspec | Deterministic dispatch/reporting cycles |
-| **Zero-copy IPC** | socketpair SOCK_DGRAM | Efficient Manager-Worker communication |
-| **Graceful Shutdown** | SIGINT + 'X' message | No zombies, no task loss |
-| **Dynamic Scaling** | Runtime +/- or SIGUSR1/SIGUSR2 | Adjust pool size in real time |
-| **Fault Self-healing** | Heartbeat watchdog | Crashed Workers replaced; pending tasks rescued |
-| **Timeout and Retry** | 5s timeout / max 2 retries | No task loss during network jitter |
-| **Structured Logging** | JSONL with timestamps | Post-mortem analysis |
+| الميزة | التنفيذ | الفائدة |
+|--------|---------|---------|
+| **عزل العمليات** | fork() + socketpair | تعطل Worker واحد لا يؤثر على النظام |
+| **I/O multiplexing بـ O(1)** | وضع epoll LT | latency منخفض ومستقر تحت الحمل العالي |
+| **مؤقتات بدقة النانوثانية** | timerfd + itimerspec | دورات إرسال/تقارير دقيقة |
+| **IPC بدون نسخ** | socketpair SOCK_DGRAM | اتصال فعّال بين Manager و Worker |
+| **إيقاف سلس** | SIGINT + رسالة 'X' | لا عمليات زومبي، لا فقدان مهام |
+| **توسع ديناميكي** | +/- أثناء التشغيل أو SIGUSR1/SIGUSR2 | ضبط حجم الـ pool مباشرة |
+| **إصلاح ذاتي عند الأعطال** | Heartbeat watchdog | استبدال Workers المتعطلة وإنقاذ المهام المعلقة |
+| **إعادة المحاولة عند انتهاء المهلة** | 5s مهلة / حتى مرتين | عدم فقدان المهام أثناء اضطرابات الشبكة |
+| **سجل منظم** | JSONL مع طوابع زمنية | للتحليل لاحقاً |
 
 ---
 
-## Architecture
+## البنية
 
 ```
 +-----------------------------------------------------------------------+
@@ -70,205 +70,205 @@ Built with epoll + timerfd + socketpair - zero third-party dependencies.
             V           V           V           V      V
       +---------+ +---------+ +---------+
       | Worker 1| | Worker 2| | Worker N |
-      | (fork) | | (fork) | | (fork) |
+      | (fork)  | | (fork)  | | (fork)  |
       |recv_task| |recv_task| |recv_task|
-      | +-sleep| | +-sleep| | +-sleep|
-      | +-done | | +-done | | +-done |
-      | +-pong | | +-pong | | +-pong |
+      | +-sleep | | +-sleep | | +-sleep |
+      | +-done  | | +-done  | | +-done  |
+      | +-pong  | | +-pong  | | +-pong  |
       +---------+ +---------+ +---------+
 ```
 
-- **Manager**: single event loop, owns all FD lifecycle, handles dispatch, heartbeat watchdog, reporting.
-- **Worker**: pure execute unit - receive, process, respond/pong. No scheduling logic.
-- **IPC**: one socketpair per Worker, full-duplex, non-blocking on both ends.
+- **Manager**: حلقة أحداث واحدة، تملك دورة حياة جميع الـ FD، تتعامل مع الإرسال والـ watchdog والتقارير.
+- **Worker**: وحدة تنفيذ بحتة - استقبال، معالجة، إرسال pong. لا منطق جدولة.
+- **IPC**: socketpair واحد لكل Worker، اتصال ثنائي الاتجاه كامل، غير محظور على الطرفين.
 
 ---
 
-## Quick Start
+## البدء السريع
 
 ```bash
-make                    # Build
-./bin/scheduler --help  # Show help
-./bin/scheduler 5       # Launch with 5 Workers (3 <= N <= 10)
-make test               # Run all tests
-make clean              # Clean up
+make                    # البناء
+./bin/scheduler --help  # عرض المساعدة
+./bin/scheduler 5       # تشغيل بـ 5 Workers (3 <= N <= 10)
+make test               # تشغيل جميع الاختبارات
+make clean              # تنظيف المخرجات
 ```
 
 ---
 
-## Task Types
+## أنواع المهام
 
-| Type | Processing Time | Cockpit Scenario |
-|------|-----------------|-----------------|
-| **A** | 100 ms | Sensor data ingestion |
-| **B** | 200 ms | Media stream processing |
-| **C** | 300 ms | Navigation path computation |
-
----
-
-## Interactive Controls
-
-| Input | Action |
-|-------|--------|
-| `+` | Add 1 Worker (max 10) |
-| `-` | Remove 1 Worker (min 1) |
-| `s`/`S` | Print statistics immediately |
-| `i`/`I` | Print detailed Worker info |
-| `p`/`P` | Print pending task tracker |
-| `q`/`Q` | Quit gracefully |
-| `Ctrl+C` | Graceful shutdown |
+| النوع | وقت المعالجة | سيناريو الكوكبيت |
+|------|-------------|-----------------|
+| **A** | 100 مللي ثانية | استيعاب بيانات الحساسات |
+| **B** | 200 مللي ثانية | معالجة تدفق الوسائط |
+| **C** | 300 مللي ثانية | حساب مسار الملاحة |
 
 ---
 
-## Signal Controls
+## التحكم التفاعلي
+
+| المدخل | الإجراء |
+|--------|---------|
+| `+` | إضافة 1 Worker (الحد الأقصى 10) |
+| `-` | إزالة 1 Worker (الحد الأدنى 1) |
+| `s`/`S` | طباعة الإحصائيات فوراً |
+| `i`/`I` | طباعة معلومات تفصيلية عن Workers |
+| `p`/`P` | طباعة متتبع المهام المعلقة |
+| `q`/`Q` | إيقاف سلس |
+| `Ctrl+C` | إيقاف سلس |
+
+---
+
+## التحكم بالإشارات
 
 ```bash
-kill -SIGUSR1 $(pidof scheduler)   # Add Worker
-kill -SIGUSR2 $(pidof scheduler)   # Remove Worker
-kill -SIGINT  $(pidof scheduler)   # Graceful shutdown
+kill -SIGUSR1 $(pidof scheduler)   # إضافة Worker
+kill -SIGUSR2 $(pidof scheduler)   # إزالة Worker
+kill -SIGINT  $(pidof scheduler)   # إيقاف سلس
 ```
 
 ---
 
-## Test Suite
+## مجموعة الاختبارات
 
 ```bash
-make test       # Run all 9 test suites
-make test-quick # Smoke tests only
+make test       # تشغيل جميع الاختبارات التسعة
+make test-quick # اختبارات دخانية فقط
 ```
 
-| Test | Validates |
-|------|-----------|
-| `test_boundary.sh` | N=3/10 pass; N=2/11 reject |
-| `test_stress.sh` | Workers kill -9 -> self-healing |
-| `test_dynamic.sh` | +/- live scaling |
-| `test_signal.sh` | SIGUSR1/SIGUSR2 controls |
-| `test_timeout_retry.sh` | Timeout and retry logic |
-| `test_perf.sh` | Throughput and latency metrics |
-| `test_concurrent.sh` | Concurrent correctness |
-| `test_graceful.sh` | Graceful shutdown with X protocol |
-| `test_jsonl.sh` | Structured JSONL logs |
+| الاختبار | يتحقق من |
+|---------|---------|
+| `test_boundary.sh` | N=3/10 نجاح؛ N=2/11 رفض |
+| `test_stress.sh` | Workers kill -9 -> إصلاح ذاتي |
+| `test_dynamic.sh` | +/- التوسع الديناميكي |
+| `test_signal.sh` | تحكم SIGUSR1/SIGUSR2 |
+| `test_timeout_retry.sh` | منطق المهلة وإعادة المحاولة |
+| `test_perf.sh` | مقاييس الإنتاجية والـ latency |
+| `test_concurrent.sh` | صحة التزامن |
+| `test_graceful.sh` | إيقاف سلس مع بروتوكول X |
+| `test_jsonl.sh` | سجلات JSONL المنظمة |
 
 ---
 
-## Build and Run
+## البناء والتشغيل
 
-### Requirements
+### المتطلبات
 
-| Dependency | Version |
-|------------|---------|
-| Linux kernel | 4.x+ |
-| GCC or Clang | 7+ (C++17) |
-| GNU Make | any recent |
+| التبعية | الإصدار |
+|---------|---------|
+| نواة Linux | 4.x+ |
+| GCC أو Clang | 7+ (C++17) |
+| GNU Make | أي إصدار حديث |
 
-### Commands
+### الأوامر
 
 ```bash
-make              # Build -> ./bin/scheduler
-make test         # All 9 test suites
-make test-quick   # Boundary + graceful tests only
-make install      # Install to /usr/local/bin
-make clean        # Remove ./bin and *.jsonl
-make help         # Show targets
+make              # البناء -> ./bin/scheduler
+make test         # جميع الاختبارات التسعة
+make test-quick   # اختبارات الحدود والإيقاف السلس فقط
+make install      # التثبيت في /usr/local/bin
+make clean        # حذف ./bin و *.jsonl
+make help         # عرض جميع الأهداف
 ```
 
-### Exit Codes
+### رموز الخروج
 
-| Code | Meaning |
-|------|---------|
-| `0` | Success |
-| `64` | CLI usage error |
-| `70` | Runtime error (fork/socketpair/epoll_create) |
+| الرمز | المعنى |
+|-------|-------|
+| `0` | نجاح |
+| `64` | خطأ في استخدام CLI |
+| `70` | خطأ في وقت التشغيل (فشل fork/socketpair/epoll_create) |
 
 ---
 
-## Project Structure
+## هيكل المشروع
 
 ```
 VoYah_project/
-|-- CMakeLists.txt              # CMake build (optional)
-|-- Makefile                    # Quick build entry point
-|-- .editorconfig               # Editor config
-|-- .gitignore                  # Git ignore rules
-|-- LICENSE                     # MIT license
-|-- AUTHORS                     # Authors list
-|-- CONTRIBUTING.md             # Contribution guidelines
-|-- CODE_OF_CONDUCT.md         # Community code of conduct
-|-- CHANGELOG.md               # Version changelog
-|-- src/                       # Source code
+|-- CMakeLists.txt              # البناء باستخدام CMake (اختياري)
+|-- Makefile                    # نقطة دخول سريعة للبناء
+|-- .editorconfig              # إعدادات المحرر
+|-- .gitignore                 # قواعد تجاهل Git
+|-- LICENSE                    # ترخيص MIT
+|-- AUTHORS                    # قائمة المؤلفين
+|-- CONTRIBUTING.md            # دليل المساهمة
+|-- CODE_OF_CONDUCT.md         # مدونة السلوك المجتمعي
+|-- CHANGELOG.md              # سجل تغييرات الإصدارات
+|-- src/                       # الكود المصدري
 |   |-- CMakeLists.txt
-|   +-- scheduler.cpp           # Complete source (~1000 lines)
-|-- include/                    # Public headers
+|   +-- scheduler.cpp           # التنفيذ الكامل (~1000 سطر)
+|-- include/                   # ملفات الرأس العامة
 |   +-- voyah/
-|       +-- version.h          # Version macros
-|-- docs/                      # Documentation
-|   |-- README.md             # Default entry (Chinese)
-|   |-- README_en.md          # English version
-|   |-- README_ja.md          # Japanese version
-|   |-- README_ru.md          # Russian version
-|   |-- README_ar.md          # This file (Arabic)
-|   +-- DESIGN.md              # System design document
-|-- test/                      # 9 test scripts
-|-- examples/                   # Usage examples
-|   +-- run_demo.sh           # Demo runner script
+|       +-- version.h          # تعريفات إصدارات الماكرو
+|-- docs/                      # التوثيق
+|   |-- README.md             # الصفحة الرئيسية (الصينية)
+|   |-- README_en.md          # النسخة الإنجليزية
+|   |-- README_ja.md          # النسخة اليابانية
+|   |-- README_ru.md          # النسخة الروسية
+|   |-- README_ar.md          # هذا الملف (العربية)
+|   +-- DESIGN.md              # وثيقة تصميم النظام
+|-- test/                      # 9 نصوص اختبار
+|-- examples/                   # أمثلة الاستخدام
+|   +-- run_demo.sh           # سكريبت تشغيل العرض
 +-- .github/
     |-- workflows/ci.yml        # GitHub Actions CI/CD
-    |-- ISSUE_TEMPLATE/          # Issue templates
-    +-- PULL_REQUEST_TEMPLATE.md # PR template
+    |-- ISSUE_TEMPLATE/          # قوالب المسائل
+    +-- PULL_REQUEST_TEMPLATE.md # قالب PR
 ```
 
 ---
 
-## Design Decisions
+## قرارات التصميم
 
-### Why epoll over select / poll?
+### لماذا epoll وليس select / poll؟
 
-| Criterion | select | poll | epoll |
-|-----------|--------|------|-------|
-| FD limit | FD_SETSIZE (1024) | Unlimited | Unlimited |
-| Time complexity | O(n) scan all | O(n) scan all | **O(1) ready-FDs only** |
-| Per-call memory | High (in/out copies) | High (in/out copies) | Low (registered once) |
-| Cockpit fit | No | No | **Yes - real-time, microsecond latency** |
+| المعيار | select | poll | epoll |
+|---------|--------|------|-------|
+| حد عدد الـ FD | FD_SETSIZE (1024) | بلا حد | بلا حد |
+| التعقيد الزمني | O(n) فحص الكل | O(n) فحص الكل | **O(1) FD الجاهزة فقط** |
+| الذاكرة لكل استدعاء | عالية (نسخ in/out) | عالية (نسخ in/out) | منخفضة (تسجيل مرة واحدة) |
+| ملاءمة للكوكبيت | لا | لا | **نعم - الوقت الحقيقي، latency بالميكروثانية** |
 
-### Why multi-process over multi-thread?
+### لماذا العمليات المتعددة بدلاً من الخيوط المتعددة؟
 
-- **Reliability**: one Worker crash is isolated, Manager continues running.
-- **No locks**: process boundary eliminates data races, no mutex overhead.
-- **Modern fork**: copy-on-write makes fork near-zero cost for read-mostly workloads.
+- **الموثوقية**: تعطل Worker واحد معزول، Manager يستمر.
+- **بدون أقفال**: حدود العملية تقضي على سباقات البيانات جوهرياً.
+- **fork الحديث**: Copy-on-write يجعل fork شبه مجاني للأحمال القراءة فقط.
 
-### Why native syscalls over libevent / libuv?
+### لماذا الاستدعاءات النظامية الخام بدلاً من libevent / libuv؟
 
-- Demonstrates deep understanding of Linux I/O fundamentals.
-- Zero third-party dependencies - pure GNU/Linux.
-- epoll + timerfd + socketpair fully covers all I/O multiplexing, timing, and IPC needs.
+- تُظهر فهماً عميقاً لأساسيات Linux I/O.
+- بدون مكتبات خارجية - GNU/Linux خالص.
+- epoll + timerfd + socketpair تغطي كل احتياجات multiplex وtiming و IPC.
 
 ---
 
-## Performance
+## الأداء
 
-| Metric | Value |
-|--------|-------|
-| Dispatch latency (1 Worker, 1 task) | < 1 ms |
-| epoll_wait return time | < 100 us |
-| Timer accuracy (timerfd) | nanosecond (itimerspec) |
-| Worker fork + socketpair setup | < 5 ms |
-| Graceful shutdown (N Workers) | < 100 ms + N x Worker processing time |
-| Max concurrent Workers | 10 (configurable) |
+| المقياس | القيمة |
+|---------|-------|
+| latency الإرسال (1 Worker، 1 مهمة) | < 1 مللي ثانية |
+| وقت إجابة epoll_wait | < 100 ميكروثانية |
+| دقة المؤقت (timerfd) | نانوثانية (itimerspec) |
+| إعداد Worker (fork + socketpair) | < 5 مللي ثانية |
+| الإيقاف السلس (N Workers) | < 100 مللي ثانية + N x وقت المعالجة |
+| أقصى عدد Workers متزامنين | 10 (قابل للضبط) |
 
 ---
 
 ## Roadmap
 
-- [ ] Configurable task weights and per-Worker load limits
-- [ ] Priority queue for high-urgency cockpit tasks
-- [ ] Shared memory (mmap) zero-copy transfer
-- [ ] HTTP/MQTT API for remote task injection
-- [ ] Multi-Manager HA mode with leader election
-- [ ] Web dashboard for real-time visualization
-- [ ] Windows WSL2 compatibility layer
+- [ ] أوزان مهام قابلة للضبط وحدود حمل لكل Worker
+- [ ] طابور أولويات للمهام العاجلة في الكوكبيت
+- [ ] نقل بدون نسخ عبر الذاكرة المشتركة (mmap)
+- [ ] واجهة HTTP/MQTT لحقن المهام عن بُعد
+- [ ] وضع HA متعدد Managers مع انتخاب القائد
+- [ ] لوحة ويب للتصور في الوقت الحقيقي
+- [ ] طبقة توافق Windows WSL2
 
 ---
 
-## License
+## الترخيص
 
-MIT License - see [LICENSE](../LICENSE).
+ترخيص MIT - انظر [LICENSE](../LICENSE).

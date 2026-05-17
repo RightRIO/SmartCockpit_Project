@@ -1,58 +1,58 @@
-# VoYah - Intelligent Cockpit Distributed Task Scheduler
+# VoYah - インテリジェントコックピット分散タスクスケジューラー
 
 <div align="center">
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Version](https://img.shields.io/badge/Version-1.0.0-blue)](CHANGELOG.md)
-[![C++: C++17](https://img.shields.io/badge/C%2B%2B-17-blue)](https://en.cppreference.com/w/cpp/17)
+[![C++ Standard: C++17](https://img.shields.io/badge/C%2B%2B-17-blue)](https://en.cppreference.com/w/cpp/17)
 [![Platform: Linux](https://img.shields.io/badge/Platform-Linux-green)](https://www.kernel.org/)
 [![Build: Make](https://img.shields.io/badge/Build-Make-orange)](Makefile)
 [![CI](https://img.shields.io/github/actions/workflow/status/rightrio/voyah-scheduler/ci.yml?branch=main)](https://github.com/rightrio/voyah-scheduler/actions)
 
 [English](README_en.md) &nbsp;.&nbsp; [Chinese](README.md) &nbsp;.&nbsp; [Japanese](README_ja.md) &nbsp;.&nbsp; [Russian](README_ru.md) &nbsp;.&nbsp; [Arabic](README_ar.md)
 
-**High-reliability event-driven distributed task scheduler for intelligent cockpit systems.**
-Built with epoll + timerfd + socketpair - zero third-party dependencies.
+**高信頼性イベント駆動型分散タスクスケジューラー。**
+epoll + timerfd + socketpair で構築、依存ライブラリゼロ。
 
 </div>
 
 ---
 
-## Table of Contents
+## 目次
 
-- [Highlights](#highlights)
-- [Architecture](#architecture)
-- [Quick Start](#quick-start)
-- [Task Types](#task-types)
-- [Interactive Controls](#interactive-controls)
-- [Signal Controls](#signal-controls)
-- [Test Suite](#test-suite)
-- [Build and Run](#build-and-run)
-- [Project Structure](#project-structure)
-- [Design Decisions](#design-decisions)
-- [Performance](#performance)
+- [特徴](#特徴)
+- [アーキテクチャ](#アーキテクチャ)
+- [クイックスタート](#クイックスタート)
+- [タスクタイプ](#タスクタイプ)
+- [インタラクティブ制御](#インタラクティブ制御)
+- [シグナル制御](#シグナル制御)
+- [テストスイート](#テストスイート)
+- [ビルドと実行](#ビルドと実行)
+- [プロジェクト構成](#プロジェクト構成)
+- [設計上の判断](#設計上の判断)
+- [パフォーマンス](#パフォーマンス)
 - [Roadmap](#roadmap)
-- [License](#license)
+- [ライセンス](#ライセンス)
 
 ---
 
-## Highlights
+## 特徴
 
-| Feature | Implementation | Benefit |
-|---------|---------------|---------|
-| **Process Isolation** | fork() + socketpair | Single Worker crash does not affect system |
-| **O(1) I/O Multiplexing** | epoll LT mode | Consistent low latency under high concurrency |
-| **Nanosecond Timers** | timerfd + itimerspec | Deterministic dispatch/reporting cycles |
-| **Zero-copy IPC** | socketpair SOCK_DGRAM | Efficient Manager-Worker communication |
-| **Graceful Shutdown** | SIGINT + 'X' message | No zombies, no task loss |
-| **Dynamic Scaling** | Runtime +/- or SIGUSR1/SIGUSR2 | Adjust pool size in real time |
-| **Fault Self-healing** | Heartbeat watchdog | Crashed Workers replaced; pending tasks rescued |
-| **Timeout and Retry** | 5s timeout / max 2 retries | No task loss during network jitter |
-| **Structured Logging** | JSONL with timestamps | Post-mortem analysis |
+| 特徴 | 実装方式 | メリット |
+|------|----------|---------|
+| **プロセス隔離** | fork() + socketpair | 単一Worker障害がシステム全体に影響しない |
+| **O(1)I/O多重化** | epoll LTモード | 高負荷時も遅延を安定させる |
+| **ナノ秒精度タイマー** | timerfd + itimerspec | 1sディスパッチ/5sレポート周期を正確に維持 |
+| **ゼロコピーIPC** | socketpair SOCK_DGRAM | Manager-Worker間高效的通信 |
+| **グレースフルシャットダウン** | SIGINT + 'X'メッセージ | ゾンビプロセスなし、タスクロスなし |
+| **動的スケーリング** | 実行時 +/- または SIGUSR1/SIGUSR2 | リアルタイムにプールサイズ調整 |
+| **障害自己修復** | ハートビート監視 | クラッシュWorkerを自動置換、保留タスクを救出 |
+| **タイムアウトリトライ** | 5sタイムアウト/最大2回リトライ | ネットワーク揺れ時にタスクをロスしない |
+| **構造化ログ** | タイムスタンプ付きJSONL | 事後分析対応 |
 
 ---
 
-## Architecture
+## アーキテクチャ
 
 ```
 +-----------------------------------------------------------------------+
@@ -70,205 +70,207 @@ Built with epoll + timerfd + socketpair - zero third-party dependencies.
             V           V           V           V      V
       +---------+ +---------+ +---------+
       | Worker 1| | Worker 2| | Worker N |
-      | (fork) | | (fork) | | (fork) |
+      | (fork)  | | (fork)  | | (fork)  |
       |recv_task| |recv_task| |recv_task|
-      | +-sleep| | +-sleep| | +-sleep|
-      | +-done | | +-done | | +-done |
-      | +-pong | | +-pong | | +-pong |
+      | +-sleep | | +-sleep | | +-sleep |
+      | +-done  | | +-done  | | +-done  |
+      | +-pong  | | +-pong  | | +-pong  |
       +---------+ +---------+ +---------+
 ```
 
-- **Manager**: single event loop, owns all FD lifecycle, handles dispatch, heartbeat watchdog, reporting.
-- **Worker**: pure execute unit - receive, process, respond/pong. No scheduling logic.
-- **IPC**: one socketpair per Worker, full-duplex, non-blocking on both ends.
+- **Manager**: 単一イベントループ、全FDライフサイクルを所有、ディスパッチ/ハートビート監視/レポートを担当。
+- **Worker**: 純粋な実行ユニット——受信/処理/応答pong。スケジューリングロジックなし。
+- **IPC**: Workerごとに1つのsocketpair、全二重、両端ノンブロッキング。
 
 ---
 
-## Quick Start
+## クイックスタート
 
 ```bash
-make                    # Build
-./bin/scheduler --help  # Show help
-./bin/scheduler 5       # Launch with 5 Workers (3 <= N <= 10)
-make test               # Run all tests
-make clean              # Clean up
+make                    # ビルド
+./bin/scheduler --help  # ヘルプ表示
+./bin/scheduler 5       # 5 Workerで起動（3 <= N <= 10）
+make test               # 全テスト実行
+make clean              # クリーンアップ
 ```
 
 ---
 
-## Task Types
+## タスクタイプ
 
-| Type | Processing Time | Cockpit Scenario |
-|------|-----------------|-----------------|
-| **A** | 100 ms | Sensor data ingestion |
-| **B** | 200 ms | Media stream processing |
-| **C** | 300 ms | Navigation path computation |
-
----
-
-## Interactive Controls
-
-| Input | Action |
-|-------|--------|
-| `+` | Add 1 Worker (max 10) |
-| `-` | Remove 1 Worker (min 1) |
-| `s`/`S` | Print statistics immediately |
-| `i`/`I` | Print detailed Worker info |
-| `p`/`P` | Print pending task tracker |
-| `q`/`Q` | Quit gracefully |
-| `Ctrl+C` | Graceful shutdown |
+| タイプ | 処理時間 | コックピットシナリオ |
+|--------|---------|-------------------|
+| **A** | 100 ms | センサーデータ取り込み |
+| **B** | 200 ms | メディアストリーム処理 |
+| **C** | 300 ms | ナビゲーション経路計算 |
 
 ---
 
-## Signal Controls
+## インタラクティブ制御
+
+| 入力 | 操作 |
+|------|------|
+| `+` | Workerを1つ追加（上限10） |
+| `-` | Workerを1つ削除（下限1） |
+| `s`/`S` | 統計情報を即時表示 |
+| `i`/`I` | Workerの詳細情報を表示 |
+| `p`/`P` | 保留タスクトラッカーを表示 |
+| `q`/`Q` | グレースフル終了 |
+| `Ctrl+C` | グレースフルシャットダウン |
+
+---
+
+## シグナル制御
 
 ```bash
-kill -SIGUSR1 $(pidof scheduler)   # Add Worker
-kill -SIGUSR2 $(pidof scheduler)   # Remove Worker
-kill -SIGINT  $(pidof scheduler)   # Graceful shutdown
+kill -SIGUSR1 $(pidof scheduler)   # Worker追加
+kill -SIGUSR2 $(pidof scheduler)   # Worker削除
+kill -SIGINT  $(pidof scheduler)   # グレースフル終了
 ```
 
 ---
 
-## Test Suite
+## テストスイート
 
 ```bash
-make test       # Run all 9 test suites
-make test-quick # Smoke tests only
+make test       # 全9テストスイート実行
+make test-quick # スモークテストのみ
 ```
 
-| Test | Validates |
-|------|-----------|
-| `test_boundary.sh` | N=3/10 pass; N=2/11 reject |
-| `test_stress.sh` | Workers kill -9 -> self-healing |
-| `test_dynamic.sh` | +/- live scaling |
-| `test_signal.sh` | SIGUSR1/SIGUSR2 controls |
-| `test_timeout_retry.sh` | Timeout and retry logic |
-| `test_perf.sh` | Throughput and latency metrics |
-| `test_concurrent.sh` | Concurrent correctness |
-| `test_graceful.sh` | Graceful shutdown with X protocol |
-| `test_jsonl.sh` | Structured JSONL logs |
+| テスト | 検証内容 |
+|--------|---------|
+| `test_boundary.sh` | N=3/10成功；N=2/11拒否 |
+| `test_stress.sh` | Worker kill -9 -> 自己修復 |
+| `test_dynamic.sh` | +/- 動的スケーリング |
+| `test_signal.sh` | SIGUSR1/SIGUSR2 信号制御 |
+| `test_timeout_retry.sh` | タイムアウト・リトライロジック |
+| `test_perf.sh` | スループット・レイテンシ指標 |
+| `test_concurrent.sh` | 並行正確性 |
+| `test_graceful.sh` | Xプロトコル付きグレースフル終了 |
+| `test_jsonl.sh` | 構造化JSONLログ |
 
 ---
 
-## Build and Run
+## ビルドと実行
 
-### Requirements
+### 必要環境
 
-| Dependency | Version |
-|------------|---------|
-| Linux kernel | 4.x+ |
-| GCC or Clang | 7+ (C++17) |
-| GNU Make | any recent |
+| 依存 | バージョン |
+|------|----------|
+| Linuxカーネル | 4.x+ |
+| GCC または Clang | 7+（C++17） |
+| GNU Make | 任意の最近のバージョン |
 
-### Commands
+### コマンド
 
 ```bash
-make              # Build -> ./bin/scheduler
-make test         # All 9 test suites
-make test-quick   # Boundary + graceful tests only
-make install      # Install to /usr/local/bin
-make clean        # Remove ./bin and *.jsonl
-make help         # Show targets
+make              # ビルド -> ./bin/scheduler
+make test         # 全9テストスイート
+make test-quick   # 境界テスト+グレースフル終了テストのみ
+make install      # /usr/local/bin にインストール
+make clean        # ./bin と *.jsonl を削除
+make help         # ターゲット一覧表示
 ```
 
-### Exit Codes
+### 終了コード
 
-| Code | Meaning |
-|------|---------|
-| `0` | Success |
-| `64` | CLI usage error |
-| `70` | Runtime error (fork/socketpair/epoll_create) |
+| コード | 意味 |
+|--------|------|
+| `0` | 成功 |
+| `64` | CLI使用エラー |
+| `70` | ランタイムエラー（fork/socketpair/epoll_create失敗） |
 
 ---
 
-## Project Structure
+## プロジェクト構成
 
 ```
 VoYah_project/
-|-- CMakeLists.txt              # CMake build (optional)
-|-- Makefile                    # Quick build entry point
-|-- .editorconfig               # Editor config
-|-- .gitignore                  # Git ignore rules
-|-- LICENSE                     # MIT license
-|-- AUTHORS                     # Authors list
-|-- CONTRIBUTING.md             # Contribution guidelines
-|-- CODE_OF_CONDUCT.md         # Community code of conduct
-|-- CHANGELOG.md               # Version changelog
-|-- src/                       # Source code
+|-- CMakeLists.txt              # CMake ビルド（オプション）
+|-- Makefile                    # クイックビルドエントリ
+|-- .editorconfig              # エディタ設定
+|-- .gitignore                 # Git 除外ルール
+|-- LICENSE                    # MITライセンス
+|-- AUTHORS                    # 著者一覧
+|-- CONTRIBUTING.md            # 寄稿ガイドライン
+|-- CODE_OF_CONDUCT.md         # コミュニティ行動規範
+|-- CHANGELOG.md              # バージョン履歴
+|-- src/                       # ソースコード
 |   |-- CMakeLists.txt
-|   +-- scheduler.cpp           # Complete source (~1000 lines)
-|-- include/                    # Public headers
+|   +-- scheduler.cpp           # 完全実装（約1000行）
+|-- include/                   # 公開ヘッダー
 |   +-- voyah/
-|       +-- version.h          # Version macros
-|-- docs/                      # Documentation
-|   |-- README.md             # Default entry (Chinese)
-|   |-- README_en.md          # English version
-|   |-- README_ja.md          # This file (Japanese)
-|   |-- README_ru.md          # Russian version
-|   |-- README_ar.md          # Arabic version
-|   +-- DESIGN.md              # System design document
-|-- test/                      # 9 test scripts
-|-- examples/                   # Usage examples
-|   +-- run_demo.sh           # Demo runner script
+|       +-- version.h          # バージョン定義
+|-- docs/                      # ドキュメント
+|   |-- README.md             # デフォルトエントリ（中国語）
+|   |-- README_en.md          # 英語版
+|   |-- README_ja.md          # このファイル（日本語）
+|   |-- README_ru.md          # ロシア語版
+|   |-- README_ar.md          # アラビア語版
+|   +-- DESIGN.md              # システム設計書
+|-- test/                      # 9つのテストスクリプト
+|-- examples/                   # 使用例
+|   +-- run_demo.sh           # デモ実行スクリプト
 +-- .github/
     |-- workflows/ci.yml        # GitHub Actions CI/CD
-    |-- ISSUE_TEMPLATE/          # Issue templates
-    +-- PULL_REQUEST_TEMPLATE.md # PR template
+    |-- ISSUE_TEMPLATE/          # Issue テンプレート
+    +-- PULL_REQUEST_TEMPLATE.md # PR テンプレート
 ```
 
 ---
 
-## Design Decisions
+## 設計上の判断
 
-### Why epoll over select / poll?
+### なぜ epoll か（select/poll ではなく）
 
-| Criterion | select | poll | epoll |
-|-----------|--------|------|-------|
-| FD limit | FD_SETSIZE (1024) | Unlimited | Unlimited |
-| Time complexity | O(n) scan all | O(n) scan all | **O(1) ready-FDs only** |
-| Per-call memory | High (in/out copies) | High (in/out copies) | Low (registered once) |
-| Cockpit fit | No | No | **Yes - real-time, microsecond latency** |
+| 基準 | select | poll | epoll |
+|------|--------|------|-------|
+| FD数上限 | FD_SETSIZE(1024) | 無制限 | 無制限 |
+| 時間計算量 | O(n)全走査 | O(n)全走査 | **O(1)就緒FDのみ** |
+| 呼び出し毎メモリ | 高（入出力2回コピー） | 高（入出力2回コピー） | 低（登録は1回） |
+| コックピット適合性 | ×
+|×
+| **○ - リアルタイム/μs遅延** |
 
-### Why multi-process over multi-thread?
+### なぜマルチプロセスか（マルチスレッドではなく）
 
-- **Reliability**: one Worker crash is isolated, Manager continues running.
-- **No locks**: process boundary eliminates data races, no mutex overhead.
-- **Modern fork**: copy-on-write makes fork near-zero cost for read-mostly workloads.
+- **信頼性**: 単一Worker障害は隔離され、Managerは継続動作。
+- **ロック不要**: プロセス境界がデータ競合を本質的に排除。
+- **モダンfork**: Copy-on-writeにより読み取り主体ワークロードでforkコストほぼゼロ。
 
-### Why native syscalls over libevent / libuv?
+### なぜ libevent / libuv ではなくネイティブsyscall
 
-- Demonstrates deep understanding of Linux I/O fundamentals.
-- Zero third-party dependencies - pure GNU/Linux.
-- epoll + timerfd + socketpair fully covers all I/O multiplexing, timing, and IPC needs.
+- Linux I/O基盤への深い理解を示す。
+- ゼロ依存——Pure GNU/Linux。
+- epoll + timerfd + socketpair で全I/O多重化・タイマー・IPC をカバー。
 
 ---
 
-## Performance
+## パフォーマンス
 
-| Metric | Value |
-|--------|-------|
-| Dispatch latency (1 Worker, 1 task) | < 1 ms |
-| epoll_wait return time | < 100 us |
-| Timer accuracy (timerfd) | nanosecond (itimerspec) |
-| Worker fork + socketpair setup | < 5 ms |
-| Graceful shutdown (N Workers) | < 100 ms + N x Worker processing time |
-| Max concurrent Workers | 10 (configurable) |
+| 指標 | 数値 |
+|------|------|
+| ディスパッチレイテンシ（1Worker、1タスク） | < 1 ms |
+| epoll_wait返答時間 | < 100 us |
+| タイマー精度（timerfd） | ナノ秒（itimerspec） |
+| Worker fork+socketpair起動 | < 5 ms |
+| グレースフル終了（N Worker） | < 100 ms + N x Worker処理時間 |
+| 最大同時Worker数 | 10（設定可能） |
 
 ---
 
 ## Roadmap
 
-- [ ] Configurable task weights and per-Worker load limits
-- [ ] Priority queue for high-urgency cockpit tasks
-- [ ] Shared memory (mmap) zero-copy transfer
-- [ ] HTTP/MQTT API for remote task injection
-- [ ] Multi-Manager HA mode with leader election
-- [ ] Web dashboard for real-time visualization
-- [ ] Windows WSL2 compatibility layer
+- [ ] タスク重み・Worker負荷上限の設定対応
+- [ ] 高優先度コックピットタスク向け優先キュー
+- [ ] 共有メモリ（mmap）ゼロコピー転送
+- [ ] HTTP/MQTT APIによるリモートタスク注入
+- [ ] マルチManager HAモードとリーダー選挙
+- [ ] リアルタイム可視化Webダッシュボード
+- [ ] Windows WSL2互換レイヤー
 
 ---
 
-## License
+## ライセンス
 
-MIT License - see [LICENSE](../LICENSE).
+MIT License - [LICENSE](../LICENSE) 参照。

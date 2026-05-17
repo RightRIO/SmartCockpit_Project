@@ -1,58 +1,58 @@
-# VoYah - Intelligent Cockpit Distributed Task Scheduler
+# VoYah - Распределённый планировщик задач для интеллектуальной кабины
 
 <div align="center">
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/Version-1.0.0-blue)](CHANGELOG.md)
+[![Версия](https://img.shields.io/badge/Version-1.0.0-blue)](CHANGELOG.md)
 [![C++: C++17](https://img.shields.io/badge/C%2B%2B-17-blue)](https://en.cppreference.com/w/cpp/17)
-[![Platform: Linux](https://img.shields.io/badge/Platform-Linux-green)](https://www.kernel.org/)
-[![Build: Make](https://img.shields.io/badge/Build-Make-orange)](Makefile)
+[![Платформа: Linux](https://img.shields.io/badge/Platform-Linux-green)](https://www.kernel.org/)
+[![Сборка: Make](https://img.shields.io/badge/Build-Make-orange)](Makefile)
 [![CI](https://img.shields.io/github/actions/workflow/status/rightrio/voyah-scheduler/ci.yml?branch=main)](https://github.com/rightrio/voyah-scheduler/actions)
 
 [English](README_en.md) &nbsp;.&nbsp; [Chinese](README.md) &nbsp;.&nbsp; [Japanese](README_ja.md) &nbsp;.&nbsp; [Russian](README_ru.md) &nbsp;.&nbsp; [Arabic](README_ar.md)
 
-**High-reliability event-driven distributed task scheduler for intelligent cockpit systems.**
-Built with epoll + timerfd + socketpair - zero third-party dependencies.
+**Высоконадёжный событийно-ориентированный распределённый планировщик задач для интеллектуальной автомобильной кабины.**
+Построен на epoll + timerfd + socketpair - без сторонних зависимостей.
 
 </div>
 
 ---
 
-## Table of Contents
+## Содержание
 
-- [Highlights](#highlights)
-- [Architecture](#architecture)
-- [Quick Start](#quick-start)
-- [Task Types](#task-types)
-- [Interactive Controls](#interactive-controls)
-- [Signal Controls](#signal-controls)
-- [Test Suite](#test-suite)
-- [Build and Run](#build-and-run)
-- [Project Structure](#project-structure)
-- [Design Decisions](#design-decisions)
-- [Performance](#performance)
+- [Особенности](#особенности)
+- [Архитектура](#архитектура)
+- [Быстрый старт](#быстрый-старт)
+- [Типы задач](#типы-задач)
+- [Интерактивное управление](#интерактивное-управление)
+- [Управление сигналами](#управление-сигналами)
+- [Набор тестов](#набор-тестов)
+- [Сборка и запуск](#сборка-запуск)
+- [Структура проекта](#структура-проекта)
+- [Проектные решения](#проектные-решения)
+- [Производительность](#производительность)
 - [Roadmap](#roadmap)
-- [License](#license)
+- [Лицензия](#лицензия)
 
 ---
 
-## Highlights
+## Особенности
 
-| Feature | Implementation | Benefit |
-|---------|---------------|---------|
-| **Process Isolation** | fork() + socketpair | Single Worker crash does not affect system |
-| **O(1) I/O Multiplexing** | epoll LT mode | Consistent low latency under high concurrency |
-| **Nanosecond Timers** | timerfd + itimerspec | Deterministic dispatch/reporting cycles |
-| **Zero-copy IPC** | socketpair SOCK_DGRAM | Efficient Manager-Worker communication |
-| **Graceful Shutdown** | SIGINT + 'X' message | No zombies, no task loss |
-| **Dynamic Scaling** | Runtime +/- or SIGUSR1/SIGUSR2 | Adjust pool size in real time |
-| **Fault Self-healing** | Heartbeat watchdog | Crashed Workers replaced; pending tasks rescued |
-| **Timeout and Retry** | 5s timeout / max 2 retries | No task loss during network jitter |
-| **Structured Logging** | JSONL with timestamps | Post-mortem analysis |
+| Особенность | Реализация | Преимущество |
+|-------------|-----------|--------------|
+| **Изоляция процессов** | fork() + socketpair | Сбой одного Worker не влияет на систему |
+| **O(1) мультиплексирование I/O** | epoll LT mode | Стабильная низкая задержка при высокой нагрузке |
+| **Таймеры наносекундной точности** | timerfd + itimerspec | Точные циклы диспетчеризации/отчётности |
+| **IPC с нулевым копированием** | socketpair SOCK_DGRAM | Эффективная связь Manager-Worker |
+| **Корректное завершение** | SIGINT + сообщение 'X' | Нет зомби, нет потери задач |
+| **Динамическое масштабирование** | +/- или SIGUSR1/SIGUSR2 | Настройка пула в реальном времени |
+| **Самоисцеление при сбоях** | Watchdog проверка сердцебиений | Замена упавших Worker; сохранение задач |
+| **Тайм-аут и повтор** | 5s тайм-аут / до 2 повторов | Задачи не теряются при сетевых сбоях |
+| **Структурированный лог** | JSONL с временными метками | Для последующего анализа |
 
 ---
 
-## Architecture
+## Архитектура
 
 ```
 +-----------------------------------------------------------------------+
@@ -70,205 +70,205 @@ Built with epoll + timerfd + socketpair - zero third-party dependencies.
             V           V           V           V      V
       +---------+ +---------+ +---------+
       | Worker 1| | Worker 2| | Worker N |
-      | (fork) | | (fork) | | (fork) |
+      | (fork)  | | (fork)  | | (fork)  |
       |recv_task| |recv_task| |recv_task|
-      | +-sleep| | +-sleep| | +-sleep|
-      | +-done | | +-done | | +-done |
-      | +-pong | | +-pong | | +-pong |
+      | +-sleep | | +-sleep | | +-sleep |
+      | +-done  | | +-done  | | +-done  |
+      | +-pong  | | +-pong  | | +-pong  |
       +---------+ +---------+ +---------+
 ```
 
-- **Manager**: single event loop, owns all FD lifecycle, handles dispatch, heartbeat watchdog, reporting.
-- **Worker**: pure execute unit - receive, process, respond/pong. No scheduling logic.
-- **IPC**: one socketpair per Worker, full-duplex, non-blocking on both ends.
+- **Manager**: единственный цикл событий, владеет жизненным циклом всех FD, обрабатывает диспетчеризацию, watchdog и отчётность.
+- **Worker**: чистый исполнительный модуль - получить, обработать, ответить/pong. Без логики планирования.
+- **IPC**: по одному socketpair на Worker, полный дуплекс, неблокирующий режим на обоих концах.
 
 ---
 
-## Quick Start
+## Быстрый старт
 
 ```bash
-make                    # Build
-./bin/scheduler --help  # Show help
-./bin/scheduler 5       # Launch with 5 Workers (3 <= N <= 10)
-make test               # Run all tests
-make clean              # Clean up
+make                    # Сборка
+./bin/scheduler --help  # Показать справку
+./bin/scheduler 5       # Запустить с 5 Worker (3 <= N <= 10)
+make test               # Запустить все тесты
+make clean              # Очистить
 ```
 
 ---
 
-## Task Types
+## Типы задач
 
-| Type | Processing Time | Cockpit Scenario |
-|------|-----------------|-----------------|
-| **A** | 100 ms | Sensor data ingestion |
-| **B** | 200 ms | Media stream processing |
-| **C** | 300 ms | Navigation path computation |
-
----
-
-## Interactive Controls
-
-| Input | Action |
-|-------|--------|
-| `+` | Add 1 Worker (max 10) |
-| `-` | Remove 1 Worker (min 1) |
-| `s`/`S` | Print statistics immediately |
-| `i`/`I` | Print detailed Worker info |
-| `p`/`P` | Print pending task tracker |
-| `q`/`Q` | Quit gracefully |
-| `Ctrl+C` | Graceful shutdown |
+| Тип | Время обработки | Сценарий кабины |
+|-----|----------------|-----------------|
+| **A** | 100 мс | Приём данных с датчиков |
+| **B** | 200 мс | Обработка медиапотока |
+| **C** | 300 мс | Вычисление маршрута навигации |
 
 ---
 
-## Signal Controls
+## Интерактивное управление
 
-```bash
-kill -SIGUSR1 $(pidof scheduler)   # Add Worker
-kill -SIGUSR2 $(pidof scheduler)   # Remove Worker
-kill -SIGINT  $(pidof scheduler)   # Graceful shutdown
-```
-
----
-
-## Test Suite
-
-```bash
-make test       # Run all 9 test suites
-make test-quick # Smoke tests only
-```
-
-| Test | Validates |
-|------|-----------|
-| `test_boundary.sh` | N=3/10 pass; N=2/11 reject |
-| `test_stress.sh` | Workers kill -9 -> self-healing |
-| `test_dynamic.sh` | +/- live scaling |
-| `test_signal.sh` | SIGUSR1/SIGUSR2 controls |
-| `test_timeout_retry.sh` | Timeout and retry logic |
-| `test_perf.sh` | Throughput and latency metrics |
-| `test_concurrent.sh` | Concurrent correctness |
-| `test_graceful.sh` | Graceful shutdown with X protocol |
-| `test_jsonl.sh` | Structured JSONL logs |
-
----
-
-## Build and Run
-
-### Requirements
-
-| Dependency | Version |
-|------------|---------|
-| Linux kernel | 4.x+ |
-| GCC or Clang | 7+ (C++17) |
-| GNU Make | any recent |
-
-### Commands
-
-```bash
-make              # Build -> ./bin/scheduler
-make test         # All 9 test suites
-make test-quick   # Boundary + graceful tests only
-make install      # Install to /usr/local/bin
-make clean        # Remove ./bin and *.jsonl
-make help         # Show targets
-```
-
-### Exit Codes
-
-| Code | Meaning |
+| Ввод | Действие |
 |------|---------|
-| `0` | Success |
-| `64` | CLI usage error |
-| `70` | Runtime error (fork/socketpair/epoll_create) |
+| `+` | Добавить 1 Worker (макс. 10) |
+| `-` | Удалить 1 Worker (мин. 1) |
+| `s`/`S` | Немедленный вывод статистики |
+| `i`/`I` | Детальная информация о Worker |
+| `p`/`P` | Трекер ожидающих задач |
+| `q`/`Q` | Корректный выход |
+| `Ctrl+C` | Корректное завершение |
 
 ---
 
-## Project Structure
+## Управление сигналами
+
+```bash
+kill -SIGUSR1 $(pidof scheduler)   # Добавить Worker
+kill -SIGUSR2 $(pidof scheduler)   # Удалить Worker
+kill -SIGINT  $(pidof scheduler)   # Корректное завершение
+```
+
+---
+
+## Набор тестов
+
+```bash
+make test       # Все 9 тестовых наборов
+make test-quick # Только smoke-тесты
+```
+
+| Тест | Проверяет |
+|------|----------|
+| `test_boundary.sh` | N=3/10 проходят; N=2/11 отклоняются |
+| `test_stress.sh` | Worker kill -9 -> самоисцеление |
+| `test_dynamic.sh` | +/- динамическое масштабирование |
+| `test_signal.sh` | Управление через SIGUSR1/SIGUSR2 |
+| `test_timeout_retry.sh` | Логика тайм-аута и повтора |
+| `test_perf.sh` | Пропускная способность и задержка |
+| `test_concurrent.sh` | Параллельная корректность |
+| `test_graceful.sh` | Корректное завершение с протоколом X |
+| `test_jsonl.sh` | Структурированные JSONL логи |
+
+---
+
+## Сборка и запуск
+
+### Требования
+
+| Зависимость | Версия |
+|------------|--------|
+| Ядро Linux | 4.x+ |
+| GCC или Clang | 7+ (C++17) |
+| GNU Make | любая недавняя |
+
+### Команды
+
+```bash
+make              # Сборка -> ./bin/scheduler
+make test         # Все 9 тестов
+make test-quick   # Только граничные и корректного завершения
+make install      # Установить в /usr/local/bin
+make clean        # Удалить ./bin и *.jsonl
+make help         # Показать все цели
+```
+
+### Коды завершения
+
+| Код | Значение |
+|-----|---------|
+| `0` | Успешно |
+| `64` | Ошибка использования CLI |
+| `70` | Ошибка выполнения (fork/socketpair/epoll_create) |
+
+---
+
+## Структура проекта
 
 ```
 VoYah_project/
-|-- CMakeLists.txt              # CMake build (optional)
-|-- Makefile                    # Quick build entry point
-|-- .editorconfig               # Editor config
-|-- .gitignore                  # Git ignore rules
-|-- LICENSE                     # MIT license
-|-- AUTHORS                     # Authors list
-|-- CONTRIBUTING.md             # Contribution guidelines
-|-- CODE_OF_CONDUCT.md         # Community code of conduct
-|-- CHANGELOG.md               # Version changelog
-|-- src/                       # Source code
+|-- CMakeLists.txt              # CMake сборка (опционально)
+|-- Makefile                    # Быстрый вход для сборки
+|-- .editorconfig              # Настройки редактора
+|-- .gitignore                 # Правила игнорирования Git
+|-- LICENSE                    # MIT лицензия
+|-- AUTHORS                    # Список авторов
+|-- CONTRIBUTING.md            # Руководство по вкладу
+|-- CODE_OF_CONDUCT.md         # Кодекс поведения сообщества
+|-- CHANGELOG.md              # Журнал изменений версий
+|-- src/                       # Исходный код
 |   |-- CMakeLists.txt
-|   +-- scheduler.cpp           # Complete source (~1000 lines)
-|-- include/                    # Public headers
+|   +-- scheduler.cpp           # Полная реализация (~1000 строк)
+|-- include/                   # Публичные заголовочные файлы
 |   +-- voyah/
-|       +-- version.h          # Version macros
-|-- docs/                      # Documentation
-|   |-- README.md             # Default entry (Chinese)
-|   |-- README_en.md          # English version
-|   |-- README_ja.md          # Japanese version
-|   |-- README_ru.md          # This file (Russian)
-|   |-- README_ar.md          # Arabic version
-|   +-- DESIGN.md              # System design document
-|-- test/                      # 9 test scripts
-|-- examples/                   # Usage examples
-|   +-- run_demo.sh           # Demo runner script
+|       +-- version.h          # Макросы версии
+|-- docs/                      # Документация
+|   |-- README.md             # Вход по умолчанию (китайский)
+|   |-- README_en.md          # Английская версия
+|   |-- README_ja.md          # Японская версия
+|   |-- README_ru.md          # Этот файл (русский)
+|   |-- README_ar.md          # Арабская версия
+|   +-- DESIGN.md              # Документ системного проектирования
+|-- test/                      # 9 тестовых скриптов
+|-- examples/                   # Примеры использования
+|   +-- run_demo.sh           # Скрипт запуска демо
 +-- .github/
     |-- workflows/ci.yml        # GitHub Actions CI/CD
-    |-- ISSUE_TEMPLATE/          # Issue templates
-    +-- PULL_REQUEST_TEMPLATE.md # PR template
+    |-- ISSUE_TEMPLATE/          # Шаблоны Issue
+    +-- PULL_REQUEST_TEMPLATE.md # Шаблон PR
 ```
 
 ---
 
-## Design Decisions
+## Проектные решения
 
-### Why epoll over select / poll?
+### Почему epoll, а не select / poll?
 
-| Criterion | select | poll | epoll |
-|-----------|--------|------|-------|
-| FD limit | FD_SETSIZE (1024) | Unlimited | Unlimited |
-| Time complexity | O(n) scan all | O(n) scan all | **O(1) ready-FDs only** |
-| Per-call memory | High (in/out copies) | High (in/out copies) | Low (registered once) |
-| Cockpit fit | No | No | **Yes - real-time, microsecond latency** |
+| Критерий | select | poll | epoll |
+|----------|--------|------|-------|
+| Лимит FD | FD_SETSIZE (1024) | Без ограничений | Без ограничений |
+| Временная сложность | O(n) сканирование всех | O(n) сканирование всех | **O(1) только готовые FD** |
+| Память на вызов | Высокая (копирование in/out) | Высокая (копирование in/out) | Низкая (регистрация один раз) |
+| Подходит для кабины | Нет | Нет | **Да - реальное время, микросекундная задержка** |
 
-### Why multi-process over multi-thread?
+### Почему мультипроцесс, а не мультипоточный?
 
-- **Reliability**: one Worker crash is isolated, Manager continues running.
-- **No locks**: process boundary eliminates data races, no mutex overhead.
-- **Modern fork**: copy-on-write makes fork near-zero cost for read-mostly workloads.
+- **Надёжность**: сбой одного Worker изолирован, Manager продолжает работу.
+- **Без блокировок**: граница процесса естественно устраняет гонки данных.
+- **Современный fork**: copy-on-write делает fork почти бесплатным для read-mostly нагрузок.
 
-### Why native syscalls over libevent / libuv?
+### Почему нативные системные вызовы вместо libevent / libuv?
 
-- Demonstrates deep understanding of Linux I/O fundamentals.
-- Zero third-party dependencies - pure GNU/Linux.
-- epoll + timerfd + socketpair fully covers all I/O multiplexing, timing, and IPC needs.
+- Демонстрирует глубокое понимание основ Linux I/O.
+- Ноль сторонних зависимостей - чистый GNU/Linux.
+- epoll + timerfd + socketpair полностью покрывают все потребности в мультиплексировании, таймерах и IPC.
 
 ---
 
-## Performance
+## Производительность
 
-| Metric | Value |
-|--------|-------|
-| Dispatch latency (1 Worker, 1 task) | < 1 ms |
-| epoll_wait return time | < 100 us |
-| Timer accuracy (timerfd) | nanosecond (itimerspec) |
-| Worker fork + socketpair setup | < 5 ms |
-| Graceful shutdown (N Workers) | < 100 ms + N x Worker processing time |
-| Max concurrent Workers | 10 (configurable) |
+| Метрика | Значение |
+|---------|---------|
+| Задержка диспетчеризации (1 Worker, 1 задача) | < 1 мс |
+| Время возврата epoll_wait | < 100 мкс |
+| Точность таймера (timerfd) | наносекунда (itimerspec) |
+| Запуск Worker (fork + socketpair) | < 5 мс |
+| Корректное завершение (N Worker) | < 100 мс + N x время обработки |
+| Макс. одновременных Worker | 10 (настраивается) |
 
 ---
 
 ## Roadmap
 
-- [ ] Configurable task weights and per-Worker load limits
-- [ ] Priority queue for high-urgency cockpit tasks
-- [ ] Shared memory (mmap) zero-copy transfer
-- [ ] HTTP/MQTT API for remote task injection
-- [ ] Multi-Manager HA mode with leader election
-- [ ] Web dashboard for real-time visualization
-- [ ] Windows WSL2 compatibility layer
+- [ ] Настраиваемые веса задач и лимиты нагрузки Worker
+- [ ] Приоритетная очередь для срочных задач кабины
+- [ ] Передача через разделяемую память (mmap) с нулевым копированием
+- [ ] HTTP/MQTT API для удалённого внедрения задач
+- [ ] Режим HA с несколькими Manager и выборами лидера
+- [ ] Web-панель для визуализации в реальном времени
+- [ ] Слой совместимости с Windows WSL2
 
 ---
 
-## License
+## Лицензия
 
-MIT License - see [LICENSE](../LICENSE).
+MIT License - см. [LICENSE](../LICENSE).

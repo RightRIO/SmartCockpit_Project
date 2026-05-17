@@ -4,7 +4,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Version](https://img.shields.io/badge/Version-1.0.0-blue)](CHANGELOG.md)
-[![C++: C++17](https://img.shields.io/badge/C%2B%2B-17-blue)](https://en.cppreference.com/w/cpp/17)
+[![C++ Standard: C++17](https://img.shields.io/badge/C%2B%2B-17-blue)](https://en.cppreference.com/w/cpp/17)
 [![Platform: Linux](https://img.shields.io/badge/Platform-Linux-green)](https://www.kernel.org/)
 [![Build: Make](https://img.shields.io/badge/Build-Make-orange)](Makefile)
 [![CI](https://img.shields.io/github/actions/workflow/status/rightrio/voyah-scheduler/ci.yml?branch=main)](https://github.com/rightrio/voyah-scheduler/actions)
@@ -70,11 +70,11 @@ Built with epoll + timerfd + socketpair - zero third-party dependencies.
             V           V           V           V      V
       +---------+ +---------+ +---------+
       | Worker 1| | Worker 2| | Worker N |
-      | (fork) | | (fork) | | (fork) |
+      | (fork)  | | (fork)  | | (fork)  |
       |recv_task| |recv_task| |recv_task|
-      | +-sleep| | +-sleep| | +-sleep|
-      | +-done | | +-done | | +-done |
-      | +-pong | | +-pong | | +-pong |
+      | +-sleep | | +-sleep | | +-sleep |
+      | +-done  | | +-done  | | +-done  |
+      | +-pong  | | +-pong  | | +-pong  |
       +---------+ +---------+ +---------+
 ```
 
@@ -167,7 +167,7 @@ make test-quick # Smoke tests only
 make              # Build -> ./bin/scheduler
 make test         # All 9 test suites
 make test-quick   # Boundary + graceful tests only
-make install      # Install to /usr/local/bin
+make install      # Install to /usr/local/bin (sudo)
 make clean        # Remove ./bin and *.jsonl
 make help         # Show targets
 ```
@@ -189,16 +189,16 @@ VoYah_project/
 |-- CMakeLists.txt              # CMake build (optional)
 |-- Makefile                    # Quick build entry point
 |-- .editorconfig               # Editor config
-|-- .gitignore                  # Git ignore rules
-|-- LICENSE                     # MIT license
-|-- AUTHORS                     # Authors list
-|-- CONTRIBUTING.md             # Contribution guidelines
+|-- .gitignore                 # Git ignore rules
+|-- LICENSE                    # MIT license
+|-- AUTHORS                    # Authors list
+|-- CONTRIBUTING.md            # Contribution guidelines
 |-- CODE_OF_CONDUCT.md         # Community code of conduct
-|-- CHANGELOG.md               # Version changelog
+|-- CHANGELOG.md              # Version changelog
 |-- src/                       # Source code
 |   |-- CMakeLists.txt
 |   +-- scheduler.cpp           # Complete source (~1000 lines)
-|-- include/                    # Public headers
+|-- include/                   # Public headers
 |   +-- voyah/
 |       +-- version.h          # Version macros
 |-- docs/                      # Documentation

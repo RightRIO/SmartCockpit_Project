@@ -1,0 +1,47 @@
+name: Feature Request
+
+description: Suggest an idea for this project
+title: "[Feature] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Feature Description
+        Describe the feature you would like to see added.
+
+        ## Motivation
+        Why is this feature important? What problem does it solve?
+
+        ## Proposed Solution
+        Describe your proposed solution and any alternatives considered.
+
+        ## Scope
+        - [ ] Breaking change (this change will break existing functionality)
+        - [ ] This feature touches multiple components (Manager, Worker, IPC, etc.)
+
+  - type: textarea
+    id: use-cases
+    attributes:
+      label: "Use Cases"
+      description: Describe the specific use cases this feature would support
+    validations:
+      required: true
+
+  - type: textarea
+    id: mockups
+    attributes:
+      label: "Screenshots / Mockups"
+      description: Any visual mockups or diagrams that help explain the feature
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: "Checklist"
+      options:
+        - label: "I have searched existing issues and confirmed this is not a duplicate"
+          required: true
+        - label: "I am willing to help implement this feature"
+          required: false

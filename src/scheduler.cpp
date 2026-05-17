@@ -2,6 +2,8 @@
 #define _GNU_SOURCE
 #endif
 
+#include "voyah/version.h"
+
 #include <iostream>
 #include <vector>
 #include <memory>
@@ -10,10 +12,13 @@
 #include <unordered_map>
 #include <deque>
 #include <algorithm>
+#include <string>
 #include <numeric>
 #include <climits>
 #include <ctime>
 #include <cstdlib>
+#include <cstdio>
+#include <cctype>
 #include <sys/socket.h>
 #include <sys/epoll.h>
 #include <sys/timerfd.h>
@@ -22,7 +27,6 @@
 #include <signal.h>
 #include <unistd.h>
 #include <stdint.h>
-#include <stdio.h>
 #include <fcntl.h>
 #include <errno.h>
 
@@ -43,7 +47,7 @@ const int TASK_SLEEP_A = 100;
 const int TASK_SLEEP_B = 200;
 const int TASK_SLEEP_C = 300;
 
-// ---------- 任务配置表 ----------
+// ---------- 任务配置�?----------
 struct TaskConfig {
     char type;
     int sleep_ms;
@@ -75,7 +79,7 @@ struct TaskMsg {
 struct TaskRecord {
     char type;
     uint32_t seq;
-    int64_t dispatch_time_ms;  // 毫秒时间戳
+    int64_t dispatch_time_ms;  // 毫秒时间�?
     pid_t target_pid;
     int retry_count = 0;
 };
@@ -150,7 +154,7 @@ struct Worker {
     int64_t last_heartbeat_ms = 0;
 };
 
-// ---------- Worker 管理类 ----------
+// ---------- Worker 管理�?----------
 class WorkerManager {
 public:
     explicit WorkerManager(EventLoop* loop);
@@ -191,7 +195,7 @@ private:
     // 任务追踪
     std::unordered_map<uint32_t, TaskRecord> task_tracker_;
 
-    // 待重试任务队列 (type, seq)
+    // 待重试任务队�?(type, seq)
     std::deque<std::pair<char, uint32_t>> retry_queue_;
 
     GlobalStats stats_;
@@ -207,7 +211,7 @@ private:
     Worker* find_worker_by_pid(pid_t pid);
 };
 
-// ---------- 事件循环类 ----------
+// ---------- 事件循环�?----------
 class EventLoop {
 public:
     EventLoop();
@@ -248,6 +252,42 @@ void signal_handler(int sig) {
 
 void shutdown_handler(int) {
     g_running = 0;
+}
+
+// ---------- Exit Codes ----------
+enum ExitCode {
+    EXIT_SUCCESS   = 0,
+    EXIT_USAGE     = 64,   // command-line usage error
+    EXIT_RUNTIME   = 70,   // runtime error (failed to fork, socketpair, etc.)
+};
+
+// ---------- CLI Helpers ----------
+static void print_version() {
+    std::cout << VOYAH_VERSION_FULL << "\n";
+    std::cout << "Copyright (c) 2026 RightRIO\n";
+    std::cout << "License MIT: <https://opensource.org/licenses/MIT>\n";
+    std::cout << "This is free software; you are free to modify and redistribute it.\n";
+}
+
+static void print_help(const char* prog) {
+    std::cout << "Usage: " << prog << " [OPTIONS] N\n";
+    std::cout << "\nPositional arguments:\n";
+    std::cout << "  N              Number of Workers (3�?0)\n";
+    std::cout << "\nOptions:\n";
+    std::cout << "  -h, --help    Show this help message and exit\n";
+    std::cout << "  -v, --version Show version information and exit\n";
+    std::cout << "\nRuntime controls:\n";
+    std::cout << "  +             Add 1 Worker (max 10)\n";
+    std::cout << "  -             Remove 1 Worker (min 1)\n";
+    std::cout << "  s             Print statistics immediately\n";
+    std::cout << "  i             Print Worker details\n";
+    std::cout << "  p             Print pending task tracker\n";
+    std::cout << "  q             Quit gracefully (same as Ctrl+C)\n";
+    std::cout << "\nSignal controls:\n";
+    std::cout << "  SIGUSR1       Add 1 Worker\n";
+    std::cout << "  SIGUSR2       Remove 1 Worker\n";
+    std::cout << "  SIGINT/SIGTERM Quit gracefully\n";
+    std::cout << "\nReport bugs: <https://github.com/rightrio/voyah-scheduler/issues>\n";
 }
 
 // ---------- JSONL 日志辅助 ----------
@@ -371,7 +411,7 @@ void WorkerManager::worker_main(int fd) {
 
 void WorkerManager::add_worker() {
     if (workers_.size() >= 10) {
-        std::cout << "[WARN] 已达最大 Worker 数 10，拒绝新增\n";
+        std::cout << "[WARN] 已达最�?Worker �?10，拒绝新增\n";
         return;
     }
 
@@ -400,7 +440,7 @@ void WorkerManager::add_worker() {
         write_log_event("worker_add",
                         "\"pid\":%d,\"worker_count\":%zu",
                         pid, workers_.size());
-        std::cout << "[INFO] Worker 已创建: PID=" << pid
+        std::cout << "[INFO] Worker 已创�? PID=" << pid
                   << " 当前数量: " << workers_.size() << "\n";
     } else {
         perror("fork");
@@ -425,7 +465,7 @@ void WorkerManager::remove_worker() {
     write_log_event("worker_remove",
                     "\"pid\":%d,\"worker_count\":%zu",
                     removed_pid, workers_.size());
-    std::cout << "[INFO] Worker 已移除: PID=" << removed_pid
+    std::cout << "[INFO] Worker 已移�? PID=" << removed_pid
               << " 当前数量: " << workers_.size() << "\n";
 }
 
@@ -434,7 +474,7 @@ void WorkerManager::replace_worker(size_t idx) {
     Worker& w = workers_[idx];
     pid_t old_pid = w.pid;
 
-    // 收集该 Worker 未完成的任务
+    // 收集�?Worker 未完成的任务
     int rescued = 0;
     for (auto it = task_tracker_.begin(); it != task_tracker_.end(); ) {
         if (it->second.target_pid == old_pid) {
@@ -448,7 +488,7 @@ void WorkerManager::replace_worker(size_t idx) {
         }
     }
 
-    // 关闭旧 fd，解除 epoll 监听
+    // 关闭�?fd，解�?epoll 监听
     loop_->del_fd(w.channel->get_fd());
     w.channel.reset();
     int status;
@@ -458,7 +498,7 @@ void WorkerManager::replace_worker(size_t idx) {
                     "\"old_pid\":%d,\"new_pid\":-1,\"rescued_tasks\":%d",
                     old_pid, rescued);
 
-    // fork 新 Worker
+    // fork �?Worker
     int sv[2];
     if (socketpair(AF_UNIX, SOCK_DGRAM, 0, sv) < 0) {
         perror("socketpair");
@@ -486,7 +526,7 @@ void WorkerManager::replace_worker(size_t idx) {
         write_log_event("worker_replaced",
                         "\"old_pid\":%d,\"new_pid\":%d,\"rescued_tasks\":%d",
                         old_pid, new_pid, rescued);
-        std::cout << "[RECOVERY] Worker 已自动替换: " << old_pid
+        std::cout << "[RECOVERY] Worker 已自动替�? " << old_pid
                   << " -> " << new_pid
                   << "，已补偿 " << rescued << " 个任务\n";
     }
@@ -496,7 +536,7 @@ void WorkerManager::remove_worker_by_fd(int fd) {
     for (size_t i = 0; i < workers_.size(); ++i) {
         if (workers_[i].channel && workers_[i].channel->get_fd() == fd) {
             std::cout << "[WARN] Worker (PID " << workers_[i].pid
-                      << ") 异常，触发自动替换...\n";
+                      << ") 异常，触发自动替�?..\n";
 
             write_log_event("worker_crash",
                             "\"pid\":%d,\"pending_count\":%d",
@@ -509,7 +549,7 @@ void WorkerManager::remove_worker_by_fd(int fd) {
 }
 
 void WorkerManager::shutdown_and_wait() {
-    std::cout << "\n[SHUTDOWN] 正在向所有 Worker 发送退出信号（优雅退出）...\n";
+    std::cout << "\n[SHUTDOWN] 正在向所�?Worker 发送退出信号（优雅退出）...\n";
 
     for (auto& w : workers_) {
         if (w.alive && w.channel) {
@@ -518,24 +558,24 @@ void WorkerManager::shutdown_and_wait() {
     }
 
     if (workers_.empty()) {
-        std::cout << "[SHUTDOWN] 所有 Worker 已提前退出，无需额外清理。\n";
+        std::cout << "[SHUTDOWN] 所�?Worker 已提前退出，无需额外清理。\n";
         return;
     }
 
     for (auto& w : workers_) {
         int status;
         waitpid(w.pid, &status, 0);
-        std::cout << "[SHUTDOWN] Worker (PID " << w.pid << ") 已回收，退出状态: "
+        std::cout << "[SHUTDOWN] Worker (PID " << w.pid << ") 已回收，退出状�? "
                   << WEXITSTATUS(status) << "\n";
     }
     workers_.clear();
-    std::cout << "[SHUTDOWN] 所有 Worker 已优雅退出，无僵尸进程残留。\n";
+    std::cout << "[SHUTDOWN] 所�?Worker 已优雅退出，无僵尸进程残留。\n";
 }
 
 void WorkerManager::dispatch_tasks() {
     if (workers_.empty()) return;
 
-    // 清理失效 Worker（已在上一轮被 replace_worker 处理）
+    // 清理失效 Worker（已在上一轮被 replace_worker 处理�?
     for (auto it = workers_.begin(); it != workers_.end(); ) {
         if (!it->alive || !it->channel) {
             if (it->channel) loop_->del_fd(it->channel->get_fd());
@@ -546,8 +586,8 @@ void WorkerManager::dispatch_tasks() {
     }
     if (workers_.empty()) return;
 
-    // 每次生成与存活 Worker 数量相同的新任务
-    // 使用最少待办数（least-pending）负载均衡
+    // 每次生成与存�?Worker 数量相同的新任务
+    // 使用最少待办数（least-pending）负载均�?
     std::vector<size_t> order(workers_.size());
     std::iota(order.begin(), order.end(), 0);
     std::stable_sort(order.begin(), order.end(),
@@ -563,12 +603,12 @@ void WorkerManager::dispatch_tasks() {
         uint32_t seq = next_seq_++;
 
         if (!w.channel->send_msg(task, seq)) {
-            std::cerr << "[ERROR] 任务派发到 Worker " << w.pid << " 失败，触发替换\n";
+            std::cerr << "[ERROR] 任务派发�?Worker " << w.pid << " 失败，触发替换\n";
             replace_worker(idx);
             continue;
         }
 
-        // 记录到 tracker
+        // 记录�?tracker
         TaskRecord rec;
         rec.type = task;
         rec.seq = seq;
@@ -588,7 +628,7 @@ void WorkerManager::dispatch_tasks() {
 
 void WorkerManager::dispatch_retries() {
     while (!retry_queue_.empty()) {
-        // 找一个 pending_count 最少的 Worker
+        // 找一�?pending_count 最少的 Worker
         Worker* target = nullptr;
         int min_pending = INT_MAX;
         for (auto& w : workers_) {
@@ -634,7 +674,7 @@ void WorkerManager::handle_message(int fd) {
     char type;
     uint32_t seq;
     if (!target->channel->recv_msg(type, seq)) {
-        std::cerr << "[ERROR] 与 Worker (PID " << target->pid
+        std::cerr << "[ERROR] �?Worker (PID " << target->pid
                   << ") 通信失败，触发自动替换\n";
         remove_worker_by_fd(fd);
         return;
@@ -647,7 +687,7 @@ void WorkerManager::handle_message(int fd) {
         return;
     }
 
-    // 找到对应的 tracker 记录
+    // 找到对应�?tracker 记录
     auto it = task_tracker_.find(seq);
     if (it == task_tracker_.end()) {
         // seq 不在 tracker 中（可能是重试后的新 seq，已被处理）
@@ -683,7 +723,7 @@ void WorkerManager::check_timeouts() {
         int64_t elapsed = now - rec.dispatch_time_ms;
         if (elapsed > TIMEOUT_SECS * 1000) {
             if (rec.retry_count < MAX_RETRIES) {
-                // 入重试队列
+                // 入重试队�?
                 retry_queue_.push_back({rec.type, seq});
                 stats_.total_timeout++;
                 write_log_event("timeout",
@@ -753,11 +793,11 @@ void WorkerManager::print_statistics() {
 
     double throughput = (double)stats_.total_completed / elapsed_s;
 
-    std::cout << "\n========== 系统统计报告 (每5秒) ==========\n";
+    std::cout << "\n========== 系统统计报告 (�?�? ==========\n";
     std::cout << "系统运行时间: " << elapsed_s << "s  |  "
-              << "总派发: " << stats_.total_dispatched
-              << "  |  吞吐量: " << throughput << " tasks/s\n";
-    std::cout << "已完成: " << stats_.total_completed
+              << "总派�? " << stats_.total_dispatched
+              << "  |  吞吐�? " << throughput << " tasks/s\n";
+    std::cout << "已完�? " << stats_.total_completed
               << "  |  超时: " << stats_.total_timeout
               << "  |  重试: " << stats_.total_retry
               << "  |  失败: " << stats_.total_failed << "\n";
@@ -795,7 +835,7 @@ void WorkerManager::print_worker_info() {
     int64_t now_ms_val = (int64_t)tv.tv_sec * 1000 + tv.tv_usec / 1000;
 
     std::cout << "\n========== Worker 详细信息 ==========\n";
-    std::cout << "PID        存活   存活时间   完成任务   A    B    C   待处理   最后心跳\n";
+    std::cout << "PID        存活   存活时间   完成任务   A    B    C   待处�?  最后心跳\n";
     for (size_t i = 0; i < workers_.size(); ++i) {
         auto& w = workers_[i];
         int w_elapsed = (int)((now_ms_val - w.start_time_ms) / 1000);
@@ -814,8 +854,8 @@ void WorkerManager::print_worker_info() {
 }
 
 void WorkerManager::print_pending_tasks() {
-    std::cout << "\n========== 待追踪任务 (共 "
-              << task_tracker_.size() << " 个) ==========\n";
+    std::cout << "\n========== 待追踪任�?(�?"
+              << task_tracker_.size() << " �? ==========\n";
     if (task_tracker_.empty()) {
         std::cout << "  （无待处理任务）\n";
     } else {
@@ -832,7 +872,7 @@ void WorkerManager::print_pending_tasks() {
         }
     }
     if (!retry_queue_.empty()) {
-        std::cout << "待重试队列 (" << retry_queue_.size() << "): ";
+        std::cout << "待重试队�?(" << retry_queue_.size() << "): ";
         for (auto& p : retry_queue_) {
             std::cout << p.second << "(" << p.first << ") ";
         }
@@ -861,7 +901,7 @@ EventLoop::~EventLoop() {
 }
 
 void EventLoop::init_timerfd() {
-    // 1秒定时器：任务派发 + 超时检测
+    // 1秒定时器：任务派�?+ 超时检�?
     timerfd_1s_ = timerfd_create(CLOCK_MONOTONIC, 0);
     struct itimerspec its1 = {{1, 0}, {1, 0}};
     timerfd_settime(timerfd_1s_, 0, &its1, nullptr);
@@ -873,7 +913,7 @@ void EventLoop::init_timerfd() {
     timerfd_settime(timerfd_2s_, 0, &its2, nullptr);
     add_fd(timerfd_2s_, EPOLLIN);
 
-    // 5秒定时器：统计报告
+    // 5秒定时器：统计报�?
     timerfd_5s_ = timerfd_create(CLOCK_MONOTONIC, 0);
     struct itimerspec its5 = {{5, 0}, {5, 0}};
     timerfd_settime(timerfd_5s_, 0, &its5, nullptr);
@@ -908,14 +948,14 @@ void EventLoop::process_stdin() {
     } else if (cmd == 'p' || cmd == 'P') {
         manager_->print_pending_tasks();
     } else if (cmd == 'q' || cmd == 'Q') {
-        std::cout << "[CLI] 收到退出指令，正在优雅退出...\n";
+        std::cout << "[CLI] 收到退出指令，正在优雅退�?..\n";
         g_running = 0;
     }
 }
 
 void EventLoop::run() {
-    std::cout << "\n提示：+ 增加 Worker  |  - 减少 Worker  |  "
-              << "s 立即统计  |  i Worker详情  |  p 待追踪任务  |  q 退出\n";
+    std::cout << "\n提示�? 增加 Worker  |  - 减少 Worker  |  "
+              << "s 立即统计  |  i Worker详情  |  p 待追踪任�? |  q 退出\n";
     std::cout << "=====================================\n";
 
     struct epoll_event events[64];
@@ -955,17 +995,32 @@ void EventLoop::run() {
 }
 
 int main(int argc, char* argv[]) {
-    if (argc != 2) {
-        std::cerr << "Usage: " << argv[0] << " <N> (3~10)\n";
-        return 1;
-    }
-    int N = atoi(argv[1]);
-    if (N < 3 || N > 10) {
-        std::cerr << "N must be between 3 and 10\n";
-        return 1;
+    if (argc == 2) {
+        std::string arg = argv[1];
+        if (arg == "--help" || arg == "-h") {
+            print_help(argv[0]);
+            return 0;
+        }
+        if (arg == "--version" || arg == "-v") {
+            print_version();
+            return 0;
+        }
     }
 
-    srand(time(nullptr));
+    if (argc != 2) {
+        std::cerr << "Error: missing required argument.\n\n";
+        print_help(argv[0]);
+        return EXIT_USAGE;
+    }
+
+    int N = atoi(argv[1]);
+    if (N < 3 || N > 10) {
+        std::cerr << "Error: N must be between 3 and 10 (inclusive).\n";
+        std::cerr << "Got: " << N << "\n";
+        return EXIT_USAGE;
+    }
+
+    srand(static_cast<unsigned>(time(nullptr)));
 
     EventLoop loop;
     WorkerManager manager(&loop);
@@ -979,7 +1034,7 @@ int main(int argc, char* argv[]) {
 
     for (int i = 0; i < N; ++i) manager.add_worker();
 
-    std::cout << "系统启动，当前 Worker 数量: " << manager.size() << "\n";
+    std::cout << "系统启动，当�?Worker 数量: " << manager.size() << "\n";
     loop.run();
 
     manager.shutdown_and_wait();

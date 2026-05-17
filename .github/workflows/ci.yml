@@ -1,0 +1,121 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  build-and-test:
+    name: Build & Test (Ubuntu Latest)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq g++ make
+
+      - name: Check compiler version
+        run: |
+          g++ --version
+          make --version | head -1
+
+      - name: Build
+        run: make
+
+      - name: Verify binary
+        run: |
+          test -x ./bin/scheduler && echo "Binary exists and is executable"
+          ls -lh ./bin/scheduler
+
+      - name: Run boundary tests
+        run: bash test/test_boundary.sh ./bin/scheduler
+
+      - name: Run graceful shutdown test
+        run: bash test/test_graceful.sh ./bin/scheduler
+
+      - name: Run stress test
+        run: bash test/test_stress.sh ./bin/scheduler
+
+      - name: Run dynamic scaling test
+        run: bash test/test_dynamic.sh ./bin/scheduler
+
+      - name: Run signal test
+        run: bash test/test_signal.sh ./bin/scheduler
+
+      - name: Run timeout/retry test
+        run: bash test/test_timeout_retry.sh ./bin/scheduler
+
+      - name: Run performance test
+        run: bash test/test_perf.sh ./bin/scheduler
+
+      - name: Run concurrent test
+        run: bash test/test_concurrent.sh ./bin/scheduler
+
+      - name: Run JSONL test
+        run: bash test/test_jsonl.sh ./bin/scheduler
+
+      - name: Run quick test suite
+        run: make test-quick
+
+  cmake-build:
+    name: CMake Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install CMake
+        run: sudo apt-get install -y -qq cmake
+
+      - name: Configure with CMake
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build with CMake
+        run: cmake --build build --parallel
+
+      - name: Verify CMake binary
+        run: test -x build/src/scheduler && ls -lh build/src/scheduler
+
+  lint:
+    name: Static Analysis
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install cppcheck
+        run: sudo apt-get install -y -qq cppcheck
+
+      - name: Run cppcheck
+        run: cppcheck --std=c++17 --enable=all --force --quiet src/scheduler.cpp
+
+  test-versions:
+    name: Build on GCC ${{ matrix.gcc_version }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        gcc_version: ['11', '12', '13']
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install GCC ${{ matrix.gcc_version }}
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq g++-${{ matrix.gcc_version }}
+          g++-${{ matrix.gcc_version }} --version
+
+      - name: Build with GCC ${{ matrix.gcc_version }}
+        run: g++-${{ matrix.gcc_version }} -O2 -std=c++17 -Wall -Wextra -Wno-unused-result -pthread -Isrc src/scheduler.cpp -o bin/scheduler_gcc${{ matrix.gcc_version }}
+
+      - name: Verify binary
+        run: test -x ./bin/scheduler_gcc${{ matrix.gcc_version }}

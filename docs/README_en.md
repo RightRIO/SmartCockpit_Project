@@ -1,4 +1,4 @@
-# VoYah - Intelligent Cockpit Distributed Task Scheduler
+# Intelligent Cockpit Distributed Task Scheduler
 
 <div align="center">
 

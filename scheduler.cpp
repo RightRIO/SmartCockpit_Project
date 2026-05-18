@@ -14,10 +14,10 @@
 #include <ctime>
 #include <cstdlib>
 
-// ---------- 前置声明 ----------
+
 class EventLoop;
 
-// ---------- 消息定义 ----------
+//消息定义
 #pragma pack(1)
 struct TaskMsg {
     char type;
@@ -34,7 +34,7 @@ const char TASK_A = 'A';
 const char TASK_B = 'B';
 const char TASK_C = 'C';
 
-// ---------- 通信通道 ----------
+//通信通道
 class IpcChannel {
 public:
     explicit IpcChannel(int fd) : fd_(fd) {}
@@ -87,7 +87,7 @@ private:
     int fd_;
 };
 
-// ---------- Worker 数据结构 ----------
+//worker数据结构
 struct Worker {
     pid_t pid;
     std::unique_ptr<IpcChannel> channel;
@@ -96,7 +96,7 @@ struct Worker {
     bool alive = true;
 };
 
-// ---------- Worker 管理类 ----------
+//Worker管理类
 class WorkerManager {
 public:
     explicit WorkerManager(EventLoop* loop) : loop_(loop) {}
@@ -120,7 +120,7 @@ private:
     static void worker_main(int fd);
 };
 
-// ---------- 事件循环类 ----------
+//事件循环类
 class EventLoop {
 public:
     EventLoop();
@@ -142,7 +142,7 @@ private:
     void process_stdin();   // 处理键盘输入
 };
 
-// ---------- 全局变量，用于信号处理----------
+//全局变量，用于信号处理
 WorkerManager* g_worker_manager = nullptr;
 volatile sig_atomic_t g_running = 1;
 
@@ -157,7 +157,7 @@ void shutdown_handler(int sig) {
     g_running = 0;
 }
 
-// ---------- WorkerManager 实现 ----------
+//WorkerManager实现
 char get_random_task() {
     int r = rand() % 3;
     return (r == 0) ? TASK_A : (r == 1) ? TASK_B : TASK_C;
@@ -339,7 +339,6 @@ void WorkerManager::worker_main(int fd) {
     }
 }
 
-// ---------- EventLoop 实现 ----------
 EventLoop::EventLoop() {
     epoll_fd_ = epoll_create1(0);
     if (epoll_fd_ == -1) {
@@ -386,13 +385,12 @@ void EventLoop::process_stdin() {
     ssize_t n = read(STDIN_FILENO, &cmd, 1);
     if (n <= 0) return;
 
-    // 简单的命令解析：+ 增加，- 减少，其他忽略
     if (cmd == '+') {
         if (manager_) manager_->add_worker();
     } else if (cmd == '-') {
         if (manager_) manager_->remove_worker();
     }
-    // 可以在这里添加更多诊断命令，例如 's' 立即打印统计等
+    
 }
 
 void EventLoop::run() {
@@ -420,7 +418,6 @@ void EventLoop::run() {
     }
 }
 
-// ---------- main ----------
 int main(int argc, char* argv[]) {
     if (argc != 2) {
         std::cerr << "Usage: " << argv[0] << " <N> (3~10)\n";
@@ -438,7 +435,6 @@ int main(int argc, char* argv[]) {
     WorkerManager manager(&loop);
     loop.set_manager(&manager);
 
-    // 信号处理依然保留，如果你想继续用 kill 也可以
     g_worker_manager = &manager;
     signal(SIGUSR1, signal_handler);
     signal(SIGUSR2, signal_handler);

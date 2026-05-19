@@ -14,25 +14,27 @@
 #include <ctime>
 #include <cstdlib>
 
-//test
 class EventLoop;
 
 //消息定义
-#pragma pack(1)
+#pragma pack(1)//一字节对齐，节约空间
+
+//任务发送
 struct TaskMsg {
-    char type;
-    uint32_t seq;
+    char type;//任务类型
+    uint32_t seq;//序号
 };
 
+//任务完成
 struct DoneMsg {
-    char type;
-    uint32_t seq;
+    char type;//任务类型
+    uint32_t seq;//序号
 };
 #pragma pack()
 
-const char TASK_A = 'A';
-const char TASK_B = 'B';
-const char TASK_C = 'C';
+const char TASK_A = 'A';//任务类型A
+const char TASK_B = 'B';//任务类型B
+const char TASK_C = 'C';//任务类型C
 
 //通信通道
 class IpcChannel {
